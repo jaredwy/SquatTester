@@ -386,15 +386,16 @@ namespace Microsoft.Samples.Kinect.BodyBasics
             {
                 this.DrawBone(joints, jointPoints, bone.Item1, bone.Item2, drawingContext, drawingPen);
             }
-            var invalidSquatJoints = this.getInvalidSquatJoints(joints);
+            var FailureReasons = this.getInvalidSquatJoints(joints);
+            var invalidSquatJoints = FailureReasons.SelectMany(x=> x.getFailedJoints());
+            
 
             // Draw the joints
             foreach (JointType jointType in joints.Keys)
             {
                 Brush drawBrush = null;
-                bool validSquatJoint = !invalidSquatJoints.Contains(jointType);
                 double radius = JointThickness;
-
+                var validSquatJoint = !invalidSquatJoints.Contains(jointType);
                 TrackingState trackingState = joints[jointType].TrackingState;
 
                 if (trackingState == TrackingState.Tracked)
@@ -422,32 +423,54 @@ namespace Microsoft.Samples.Kinect.BodyBasics
                     drawingContext.DrawEllipse(drawBrush, null, jointPoints[jointType], radius, radius);
                 }
             }
+            FailureReasons.ToList().ForEach(x => x.drawGuide(drawingContext, jointPoints));
         }
 
-
-        private IEnumerable<JointType> getInvalidSquatJoints(IReadOnlyDictionary<JointType, Joint> joints)
+        private IList<ReasonBase> hasDepth(IReadOnlyDictionary<JointType, Joint> joints)
         {
-            List<JointType> invalidJoints = new List<JointType>();
+            List<ReasonBase> invalidJoints = new List<ReasonBase>();
             var spinePosition = joints[JointType.SpineBase].Position;
             var lKneePosition = joints[JointType.KneeLeft].Position;
             var rKneePosition = joints[JointType.KneeRight].Position;
 
-            if (lKneePosition.Y <= spinePosition.Y)
+            if (lKneePosition.Y <= spinePosition.Y || rKneePosition.Y <= spinePosition.Y)
             {
-                invalidJoints.Add(JointType.KneeLeft);
-                invalidJoints.Add(JointType.HipLeft);
-                invalidJoints.Add(JointType.SpineBase);
+                invalidJoints.Add(new NotDeepEnough());
             }
-            if (rKneePosition.Y <= spinePosition.Y)
-            {
-                invalidJoints.Add(JointType.KneeRight);
-                invalidJoints.Add(JointType.HipRight);
-                invalidJoints.Add(JointType.SpineBase);
-            }
-            System.Console.WriteLine(String.Format("Left foot is sitting at {0}", joints[JointType.FootLeft].Position.X));
-            System.Console.WriteLine(String.Format("Left knee is sittin at {0}", joints[JointType.KneeLeft].Position.X));
-
             return invalidJoints;
+        }
+
+        private IList<ReasonBase> getInvalidSquatJoints(IReadOnlyDictionary<JointType, Joint> joints)
+        {
+
+
+
+            return hasDepth(joints);
+        }
+
+        private IEnumerable<ReasonBase> kneesOut(IReadOnlyDictionary<JointType, Joint> joints)
+        {
+                
+            System.Console.WriteLine(String.Format("Left foot is sitting at {0}", joints[JointType.AnkleLeft].Position.X));
+            System.Console.WriteLine(String.Format("Left knee is sittin at {0}", joints[JointType.KneeLeft].Position.X));
+            System.Console.WriteLine(String.Format("right foot is sitting at {0}", joints[JointType.AnkleRight].Position.X));
+            System.Console.WriteLine(String.Format("right knee is sittin at {0}", joints[JointType.KneeRight].Position.X));
+
+            var list = new List<ReasonBase>();
+            var leftKnee = joints[JointType.KneeLeft];
+            var leftFoot = joints[JointType.AnkleLeft];
+            var rightFoot = joints[JointType.AnkleRight];
+            var rightKnee = joints[JointType.KneeRight];
+            if (Math.Abs(leftFoot.Position.X) > Math.Abs(leftKnee.Position.X))
+            {
+             //   list.Add(JointType.KneeLeft);
+            }
+
+            if (Math.Abs(rightFoot.Position.X) > Math.Abs(rightKnee.Position.X))
+            {
+            //    list.Add(JointType.KneeRight);
+            }
+            return list;
         }
 
         private bool isSquatJoint(JointType jointType)
